@@ -426,6 +426,54 @@ function registerIpcHandlers() {
     return true
   })
 
+  // --- Dedup check ---
+  ipcMain.handle(
+    'check-duplicate',
+    (_event, sessionId: number, title: string, author: string, isbn?: string) => {
+      // Check by ISBN first (exact match)
+      if (isbn) {
+        const existing = db
+          .prepare('SELECT id, title, author FROM books WHERE session_id = ? AND isbn = ?')
+          .get(sessionId, isbn) as any
+        if (existing) {
+          return { isDuplicate: true, existingBook: existing, matchType: 'isbn' }
+        }
+      }
+
+      // Fuzzy match on normalized title+author
+      const normalizeStr = (s: string) =>
+        s.toLowerCase().replace(/^the\s+/, '').replace(/:.+$/, '').trim()
+
+      const existingBooks = db
+        .prepare('SELECT id, title, author FROM books WHERE session_id = ?')
+        .all(sessionId) as any[]
+
+      const normTitle = normalizeStr(title)
+      const normAuthor = normalizeStr(author)
+
+      for (const book of existingBooks) {
+        const bookNormTitle = normalizeStr(book.title)
+        const bookNormAuthor = normalizeStr(book.author)
+
+        if (normTitle === bookNormTitle && normAuthor === bookNormAuthor) {
+          return { isDuplicate: true, existingBook: book, matchType: 'exact' }
+        }
+
+        // Simple similarity check
+        if (
+          normTitle.length > 3 &&
+          bookNormTitle.length > 3 &&
+          (normTitle.includes(bookNormTitle) || bookNormTitle.includes(normTitle)) &&
+          normAuthor === bookNormAuthor
+        ) {
+          return { isDuplicate: true, existingBook: book, matchType: 'fuzzy' }
+        }
+      }
+
+      return { isDuplicate: false }
+    }
+  )
+
   // --- Photo records ---
   ipcMain.handle(
     'save-photo',

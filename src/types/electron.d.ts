@@ -30,6 +30,13 @@ export interface ElectronAPI {
     description: string | null
   } | null>
 
+  checkDuplicate: (
+    sessionId: number,
+    title: string,
+    author: string,
+    isbn?: string
+  ) => Promise<{ isDuplicate: boolean; existingBook?: any; matchType?: string }>
+
   createSession: (name: string) => Promise<number>
   getSessions: () => Promise<any[]>
   getSession: (sessionId: number) => Promise<any>

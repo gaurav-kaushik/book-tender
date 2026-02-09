@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import BookEditSearch from '../components/BookEditSearch'
 import PhotoClassifier, { getDefaultTags } from '../components/PhotoClassifier'
 import TagPicker, { getTagColor } from '../components/TagPicker'
+import NotesEditor from '../components/NotesEditor'
 
 interface SessionPageProps {
   sessionId: number
@@ -51,11 +52,15 @@ export default function SessionPage({
   const [taggingBookId, setTaggingBookId] = useState<number | null>(null)
   const [selectedForBulk, setSelectedForBulk] = useState<Set<number>>(new Set())
   const [showBulkTagPicker, setShowBulkTagPicker] = useState(false)
+  const [notesBookId, setNotesBookId] = useState<number | null>(null)
+  const [editingName, setEditingName] = useState(false)
+  const [sessionName, setSessionName] = useState('')
   const dropRef = useRef<HTMLDivElement>(null)
 
   const loadSession = useCallback(async () => {
     const s = await window.electronAPI.getSession(sessionId)
     setSession(s)
+    setSessionName(s?.name || '')
     const b = await window.electronAPI.getBooks(sessionId)
     setBooks(
       b.map((book: any) => ({
@@ -213,7 +218,19 @@ export default function SessionPage({
             // Google Books lookup failed, continue without enrichment
           }
 
+          // Check for duplicates within session
+          const dupCheck = await window.electronAPI.checkDuplicate(
+            sessionId,
+            enriched?.title || book.title,
+            enriched?.author || book.author,
+            enriched?.isbn || undefined
+          )
+
           const defaultTags = getDefaultTags(classification)
+          const dupNote = dupCheck.isDuplicate
+            ? `⚠️ Possible duplicate of "${dupCheck.existingBook?.title}" (${dupCheck.matchType} match)`
+            : null
+
           await window.electronAPI.saveBook({
             session_id: sessionId,
             title: enriched?.title || book.title,
@@ -224,7 +241,7 @@ export default function SessionPage({
             page_count: enriched?.page_count || null,
             description: enriched?.description || null,
             tags: JSON.stringify(defaultTags),
-            notes: null,
+            notes: dupNote,
             confidence: book.confidence,
             verified: false,
             source_photo_path: photo.storedPath,
@@ -351,6 +368,13 @@ export default function SessionPage({
     setShowBulkTagPicker(false)
   }
 
+  const handleSaveNotes = async (bookId: number, notes: string) => {
+    await window.electronAPI.updateBook(bookId, { notes: notes || null })
+    setBooks((prev) =>
+      prev.map((b) => (b.id === bookId ? { ...b, notes } : b))
+    )
+  }
+
   const toggleBulkSelect = (bookId: number) => {
     setSelectedForBulk((prev) => {
       const next = new Set(prev)
@@ -400,9 +424,43 @@ export default function SessionPage({
       {/* Header */}
       <div className="px-6 py-4 border-b border-border flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-text-primary">
-            {session?.name || 'Loading...'}
-          </h1>
+          {editingName ? (
+            <input
+              type="text"
+              value={sessionName}
+              onChange={(e) => setSessionName(e.target.value)}
+              onBlur={async () => {
+                if (sessionName.trim()) {
+                  await window.electronAPI.renameSession(sessionId, sessionName.trim())
+                  onSessionUpdated()
+                }
+                setEditingName(false)
+              }}
+              onKeyDown={async (e) => {
+                if (e.key === 'Enter') {
+                  if (sessionName.trim()) {
+                    await window.electronAPI.renameSession(sessionId, sessionName.trim())
+                    onSessionUpdated()
+                  }
+                  setEditingName(false)
+                }
+                if (e.key === 'Escape') {
+                  setSessionName(session?.name || '')
+                  setEditingName(false)
+                }
+              }}
+              autoFocus
+              className="text-lg font-semibold bg-transparent border-b-2 border-accent outline-none text-text-primary"
+            />
+          ) : (
+            <h1
+              className="text-lg font-semibold text-text-primary cursor-pointer hover:text-accent transition-colors"
+              onDoubleClick={() => setEditingName(true)}
+              title="Double-click to rename"
+            >
+              {session?.name || 'Loading...'}
+            </h1>
+          )}
           <p className="text-xs text-text-secondary mt-0.5">
             {books.length} books &middot; {photos.length} photos
           </p>
@@ -651,6 +709,24 @@ export default function SessionPage({
                       >
                         +
                       </button>
+                      {book.notes && (
+                        <button
+                          onClick={() => book.id && setNotesBookId(book.id)}
+                          className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20 font-medium"
+                          title={book.notes}
+                        >
+                          📝
+                        </button>
+                      )}
+                      {!book.notes && (
+                        <button
+                          onClick={() => book.id && setNotesBookId(book.id)}
+                          className="text-[10px] px-1 py-0.5 text-text-tertiary hover:text-accent transition-colors"
+                          title="Add note"
+                        >
+                          📝
+                        </button>
+                      )}
                     </div>
 
                     {/* Actions */}
@@ -721,6 +797,16 @@ export default function SessionPage({
           currentTags={[]}
           onSave={handleBulkTag}
           onClose={() => setShowBulkTagPicker(false)}
+        />
+      )}
+
+      {/* Notes editor */}
+      {notesBookId && (
+        <NotesEditor
+          bookId={notesBookId}
+          currentNotes={books.find((b) => b.id === notesBookId)?.notes || ''}
+          onSave={handleSaveNotes}
+          onClose={() => setNotesBookId(null)}
         />
       )}
     </div>

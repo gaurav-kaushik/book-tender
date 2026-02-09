@@ -185,13 +185,13 @@ Same iteration protocol as Second Mind sprints:
 - **Tests:** Playwright test for individual tagging, custom tag creation, and bulk tagging.
 
 ### 2.2 Notes per book
-- **Status:** `TODO`
+- **Status:** `DONE` — Notes editor modal with textarea. Notes icon (📝) shown on card if notes exist, clickable to edit. Notes displayed as tooltip on hover. Add/edit/save flow complete.
 - **What:** Each book can have a free-text notes field. Useful for: "Lent to Sarah, Jan 2026", "Recommended by Mom", "Read this before the movie comes out", "Top shelf, living room". Show notes icon on card if notes exist. Click to expand.
 - **Acceptance:** Add a note to a book. See the notes icon. Click to read. Edit. Save.
 - **Tests:** Playwright test for note CRUD.
 
 ### 2.3 Session management with SQLite
-- **Status:** `TODO`
+- **Status:** `DONE` — SQLite schema with sessions, books, photos, settings, caches. Sidebar shows session list with book counts. Click to reopen. Double-click title to rename. Right-click to delete (with context menu). DB in userData directory. All data persists across app restarts.
 - **What:** Each scan session is saved locally in SQLite (via better-sqlite3 in the main process):
   - Session: id, name (auto: "Scan -- Feb 8, 2026"), created_at, photo_count, book_count
   - Books: id, session_id, title, author, isbn, cover_url, year, page_count, description, tags (JSON array), notes, confidence, verified (bool), source_photo_path
@@ -201,7 +201,7 @@ Same iteration protocol as Second Mind sprints:
 - **Tests:** Integration test for SQLite CRUD. E2E test for session list, reopen, rename.
 
 ### 2.4 Continue scanning within a session
-- **Status:** `TODO`
+- **Status:** `DONE` — Open existing session, upload more photos, new books added to same session. Dedup check on save: matches by ISBN (exact) or normalized title+author (fuzzy). Duplicates flagged with a note, not auto-removed — user decides.
 - **What:** Open an existing session. Upload more photos. New books are added to the same session. Dedup runs within the session automatically (same ISBN or fuzzy title+author match). Duplicates are flagged, not auto-removed (user decides).
 - **Acceptance:** Scan top shelf (10 books). Open same session, scan bottom shelf (10 books). Session now has ~20 books. 2 duplicates detected (same book visible in both photos). User resolves.
 - **Tests:** Playwright test for multi-photo session with dedup.

@@ -29,6 +29,10 @@ const api = {
   lookupBook: (title: string, author: string, isbn?: string) =>
     ipcRenderer.invoke('lookup-book', title, author, isbn),
 
+  // Dedup
+  checkDuplicate: (sessionId: number, title: string, author: string, isbn?: string) =>
+    ipcRenderer.invoke('check-duplicate', sessionId, title, author, isbn),
+
   // Sessions
   createSession: (name: string) => ipcRenderer.invoke('create-session', name),
   getSessions: () => ipcRenderer.invoke('get-sessions'),
