@@ -9,7 +9,9 @@
     "build": "tsc && vite build && electron-builder --mac",
     "build:vite": "tsc && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "author": "",
   "license": "MIT",
@@ -27,7 +29,8 @@
     "typescript": "^5.7.2",
     "vite": "^6.0.7",
     "vite-plugin-electron": "^0.28.8",
-    "vite-plugin-electron-renderer": "^0.14.6"
+    "vite-plugin-electron-renderer": "^0.14.6",
+    "vitest": "^4.0.18"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
@@ -43,7 +46,9 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["universal"]
+          "arch": [
+            "universal"
+          ]
         }
       ],
       "category": "public.app-category.utilities",
@@ -54,8 +59,16 @@
     "dmg": {
       "title": "Book Tender",
       "contents": [
-        { "x": 130, "y": 220 },
-        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
       ]
     },
     "files": [

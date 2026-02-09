@@ -140,7 +140,7 @@ Same iteration protocol as Second Mind sprints:
 - **Tests:** Playwright (or Spectron/Playwright with Electron) config set up. Basic test that app window opens and onboarding appears.
 
 ### 1.2 Photo upload and book identification
-- **Status:** `TODO`
+- **Status:** `DONE` — Upload via drag-and-drop or file picker. Photo thumbnail previews with status spinners. Claude vision API identification with caching by photo hash. Google Books enrichment with caching by ISBN. Results displayed in grid. Unit tests for Claude and Google Books response parsing (13 tests, all pass).
 - **What:** Upload area accepts one or more photos (drag-and-drop + file picker). For each photo:
   1. Show a thumbnail preview with a loading spinner
   2. Send to Claude vision API with prompt (see Appendix A below)

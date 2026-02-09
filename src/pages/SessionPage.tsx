@@ -23,6 +23,15 @@ interface BookCard {
   source_photo_path?: string
 }
 
+interface PhotoPreview {
+  path: string
+  hash: string
+  dataUrl?: string
+  status: 'importing' | 'identifying' | 'enriching' | 'done' | 'error'
+  bookCount?: number
+  error?: string
+}
+
 export default function SessionPage({
   sessionId,
   onSessionUpdated,
@@ -30,6 +39,7 @@ export default function SessionPage({
   const [session, setSession] = useState<any>(null)
   const [books, setBooks] = useState<BookCard[]>([])
   const [photos, setPhotos] = useState<any[]>([])
+  const [photoPreviews, setPhotoPreviews] = useState<PhotoPreview[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [processingStatus, setProcessingStatus] = useState('')
@@ -48,6 +58,27 @@ export default function SessionPage({
     )
     const p = await window.electronAPI.getPhotos(sessionId)
     setPhotos(p)
+
+    // Load thumbnails for existing photos
+    const previews: PhotoPreview[] = []
+    for (const photo of p) {
+      try {
+        const dataUrl = await window.electronAPI.getPhotoData(photo.file_path)
+        previews.push({
+          path: photo.file_path,
+          hash: photo.hash || '',
+          dataUrl,
+          status: 'done',
+        })
+      } catch {
+        previews.push({
+          path: photo.file_path,
+          hash: photo.hash || '',
+          status: 'done',
+        })
+      }
+    }
+    setPhotoPreviews(previews)
   }, [sessionId])
 
   useEffect(() => {
@@ -83,12 +114,40 @@ export default function SessionPage({
 
   const processPhotos = async (filePaths: string[]) => {
     setProcessing(true)
+    let totalNewBooks = 0
     try {
       setProcessingStatus('Importing photos...')
       const imported = await window.electronAPI.importPhotos(filePaths)
 
-      for (const photo of imported) {
-        setProcessingStatus(`Identifying books in ${photo.originalPath.split('/').pop()}...`)
+      // Add preview placeholders
+      const newPreviews: PhotoPreview[] = imported.map((p) => ({
+        path: p.storedPath,
+        hash: p.hash,
+        status: 'importing' as const,
+      }))
+      setPhotoPreviews((prev) => [...prev, ...newPreviews])
+
+      // Load thumbnails
+      for (let idx = 0; idx < imported.length; idx++) {
+        const photo = imported[idx]
+        try {
+          const dataUrl = await window.electronAPI.getPhotoData(photo.storedPath)
+          setPhotoPreviews((prev) =>
+            prev.map((p) =>
+              p.hash === photo.hash ? { ...p, dataUrl, status: 'identifying' } : p
+            )
+          )
+        } catch {
+          setPhotoPreviews((prev) =>
+            prev.map((p) =>
+              p.hash === photo.hash ? { ...p, status: 'identifying' } : p
+            )
+          )
+        }
+
+        setProcessingStatus(
+          `Identifying books in ${photo.originalPath.split('/').pop()}...`
+        )
 
         // Save photo record
         await window.electronAPI.savePhoto({
@@ -99,9 +158,27 @@ export default function SessionPage({
         })
 
         // Identify books via Claude
-        const identified = await window.electronAPI.identifyBooks(
-          photo.storedPath,
-          photo.hash
+        let identified: any[]
+        try {
+          identified = await window.electronAPI.identifyBooks(
+            photo.storedPath,
+            photo.hash
+          )
+        } catch (err: any) {
+          setPhotoPreviews((prev) =>
+            prev.map((p) =>
+              p.hash === photo.hash
+                ? { ...p, status: 'error', error: err.message }
+                : p
+            )
+          )
+          continue
+        }
+
+        setPhotoPreviews((prev) =>
+          prev.map((p) =>
+            p.hash === photo.hash ? { ...p, status: 'enriching' } : p
+          )
         )
 
         // Enrich each book via Google Books and save
@@ -138,16 +215,24 @@ export default function SessionPage({
             position: book.position || null,
             spine_text: book.spine_text || null,
           })
+          totalNewBooks++
         }
+
+        setPhotoPreviews((prev) =>
+          prev.map((p) =>
+            p.hash === photo.hash
+              ? { ...p, status: 'done', bookCount: identified.length }
+              : p
+          )
+        )
       }
 
       await loadSession()
       onSessionUpdated()
 
-      const bookCount = books.length
       await window.electronAPI.showNotification(
         'Scan Complete',
-        `Identified ${bookCount} books`
+        `Identified ${totalNewBooks} books`
       )
     } catch (err: any) {
       console.error('Processing failed:', err)
@@ -200,6 +285,21 @@ export default function SessionPage({
     }
   }
 
+  const statusLabel = (status: PhotoPreview['status']) => {
+    switch (status) {
+      case 'importing':
+        return 'Importing...'
+      case 'identifying':
+        return 'Identifying books...'
+      case 'enriching':
+        return 'Looking up metadata...'
+      case 'done':
+        return 'Done'
+      case 'error':
+        return 'Error'
+    }
+  }
+
   const unverifiedHighCount = books.filter(
     (b) => b.confidence === 'high' && !b.verified
   ).length
@@ -237,11 +337,62 @@ export default function SessionPage({
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
+        {/* Processing status */}
         {processing && (
           <div className="mb-6 p-4 bg-accent/5 border border-accent/20 rounded-xl">
             <div className="flex items-center gap-3">
               <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
               <span className="text-sm text-text-primary">{processingStatus}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Photo thumbnails */}
+        {photoPreviews.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-sm font-medium text-text-secondary mb-3">
+              Photos
+            </h2>
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {photoPreviews.map((preview, idx) => (
+                <div
+                  key={preview.hash || idx}
+                  className="relative flex-shrink-0 w-32 h-24 rounded-lg overflow-hidden bg-surface-tertiary border border-border"
+                >
+                  {preview.dataUrl ? (
+                    <img
+                      src={preview.dataUrl}
+                      alt={`Photo ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span className="text-2xl">📷</span>
+                    </div>
+                  )}
+                  {preview.status !== 'done' && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      {preview.status === 'error' ? (
+                        <span className="text-xs text-red-400 px-2 text-center">
+                          {preview.error || 'Error'}
+                        </span>
+                      ) : (
+                        <div className="text-center">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-1" />
+                          <span className="text-[10px] text-white">
+                            {statusLabel(preview.status)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {preview.status === 'done' && preview.bookCount !== undefined && (
+                    <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                      {preview.bookCount} books
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -271,84 +422,112 @@ export default function SessionPage({
                 or click to browse &middot; JPG, PNG, HEIC, WebP
               </p>
               <p className="text-xs text-text-tertiary mt-2">
-                <kbd className="px-1 py-0.5 bg-surface-secondary border border-border rounded">Cmd+O</kbd> to import
+                <kbd className="px-1 py-0.5 bg-surface-secondary border border-border rounded">
+                  Cmd+O
+                </kbd>{' '}
+                to import
               </p>
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {books.map((book) => (
+          <>
+            {/* Also show drop area when books exist */}
+            {!processing && (
               <div
-                key={book.id}
-                className={`bg-surface-secondary rounded-xl border transition-all ${
-                  book.verified
-                    ? 'border-green-500/30'
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  setIsDragging(true)
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
+                className={`mb-6 h-20 border-2 border-dashed rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+                  isDragging
+                    ? 'border-accent bg-accent/5'
                     : 'border-border hover:border-text-tertiary'
                 }`}
+                onClick={handleFileSelect}
               >
-                {/* Cover */}
-                <div className="aspect-[2/3] bg-surface-tertiary rounded-t-xl overflow-hidden flex items-center justify-center">
-                  {book.cover_url ? (
-                    <img
-                      src={book.cover_url}
-                      alt={book.title}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="text-center p-4">
-                      <div className="text-3xl mb-2">📖</div>
-                      <div className="text-xs text-text-tertiary truncate max-w-full">
-                        {book.title}
+                <p className="text-xs text-text-secondary">
+                  Drop more photos or click to add
+                </p>
+              </div>
+            )}
+
+            {/* Book grid */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {books.map((book) => (
+                <div
+                  key={book.id}
+                  className={`bg-surface-secondary rounded-xl border transition-all ${
+                    book.verified
+                      ? 'border-green-500/30'
+                      : 'border-border hover:border-text-tertiary'
+                  }`}
+                >
+                  {/* Cover */}
+                  <div className="aspect-[2/3] bg-surface-tertiary rounded-t-xl overflow-hidden flex items-center justify-center">
+                    {book.cover_url ? (
+                      <img
+                        src={book.cover_url}
+                        alt={book.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="text-center p-4">
+                        <div className="text-3xl mb-2">📖</div>
+                        <div className="text-xs text-text-tertiary truncate max-w-full">
+                          {book.title}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Info */}
-                <div className="p-3">
-                  <h3 className="text-sm font-medium text-text-primary truncate">
-                    {book.title}
-                  </h3>
-                  <p className="text-xs text-text-secondary truncate mt-0.5">
-                    {book.author}
-                  </p>
-
-                  <div className="flex items-center gap-1.5 mt-2">
-                    <span
-                      className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${confidenceColor(
-                        book.confidence
-                      )}`}
-                    >
-                      {book.confidence}
-                    </span>
-                    {book.verified && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 font-medium">
-                        confirmed
-                      </span>
                     )}
                   </div>
 
-                  {/* Actions */}
-                  {!book.verified && (
-                    <div className="flex gap-1.5 mt-3">
-                      <button
-                        onClick={() => book.id && handleConfirmBook(book.id)}
-                        className="flex-1 px-2 py-1 text-xs font-medium bg-green-500/10 text-green-600 dark:text-green-400 rounded-md hover:bg-green-500/20 transition-colors"
+                  {/* Info */}
+                  <div className="p-3">
+                    <h3 className="text-sm font-medium text-text-primary truncate">
+                      {book.title}
+                    </h3>
+                    <p className="text-xs text-text-secondary truncate mt-0.5">
+                      {book.author}
+                    </p>
+
+                    <div className="flex items-center gap-1.5 mt-2">
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${confidenceColor(
+                          book.confidence
+                        )}`}
                       >
-                        Confirm
-                      </button>
-                      <button
-                        onClick={() => book.id && handleRemoveBook(book.id)}
-                        className="flex-1 px-2 py-1 text-xs font-medium bg-red-500/10 text-red-600 dark:text-red-400 rounded-md hover:bg-red-500/20 transition-colors"
-                      >
-                        Remove
-                      </button>
+                        {book.confidence}
+                      </span>
+                      {book.verified && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 font-medium">
+                          confirmed
+                        </span>
+                      )}
                     </div>
-                  )}
+
+                    {/* Actions */}
+                    {!book.verified && (
+                      <div className="flex gap-1.5 mt-3">
+                        <button
+                          onClick={() => book.id && handleConfirmBook(book.id)}
+                          className="flex-1 px-2 py-1 text-xs font-medium bg-green-500/10 text-green-600 dark:text-green-400 rounded-md hover:bg-green-500/20 transition-colors"
+                        >
+                          Confirm
+                        </button>
+                        <button
+                          onClick={() => book.id && handleRemoveBook(book.id)}
+                          className="flex-1 px-2 py-1 text-xs font-medium bg-red-500/10 text-red-600 dark:text-red-400 rounded-md hover:bg-red-500/20 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>

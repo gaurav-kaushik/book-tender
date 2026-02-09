@@ -1,5 +1,7 @@
 import { readFileSync } from 'fs'
 import path from 'path'
+import { parseClaudeResponse } from './parsers'
+import type { IdentifiedBook } from './parsers'
 
 const SYSTEM_PROMPT = `You are a book identification expert. Analyze this photo of books and identify every book visible.
 
@@ -16,13 +18,7 @@ If you cannot identify a book at all, include it as {"title": "Unknown", "confid
 
 Respond ONLY with a JSON array of book objects. No preamble, no markdown fences.`
 
-export interface IdentifiedBook {
-  title: string
-  author: string
-  spine_text?: string
-  confidence: 'high' | 'medium' | 'low'
-  position?: string
-}
+export type { IdentifiedBook }
 
 export async function identifyBooks(
   apiKey: string,
@@ -73,31 +69,5 @@ export async function identifyBooks(
     throw new Error('No text response from Claude')
   }
 
-  try {
-    const books = JSON.parse(textContent.text)
-    if (!Array.isArray(books)) {
-      throw new Error('Response is not an array')
-    }
-    return books.map((b: any) => ({
-      title: b.title || 'Unknown',
-      author: b.author || '',
-      spine_text: b.spine_text || undefined,
-      confidence: ['high', 'medium', 'low'].includes(b.confidence) ? b.confidence : 'low',
-      position: b.position || undefined,
-    }))
-  } catch {
-    // Try to extract JSON from the response if it has extra text
-    const jsonMatch = textContent.text.match(/\[[\s\S]*\]/)
-    if (jsonMatch) {
-      const books = JSON.parse(jsonMatch[0])
-      return books.map((b: any) => ({
-        title: b.title || 'Unknown',
-        author: b.author || '',
-        spine_text: b.spine_text || undefined,
-        confidence: ['high', 'medium', 'low'].includes(b.confidence) ? b.confidence : 'low',
-        position: b.position || undefined,
-      }))
-    }
-    throw new Error('Failed to parse Claude response as JSON')
-  }
+  return parseClaudeResponse(textContent.text)
 }
