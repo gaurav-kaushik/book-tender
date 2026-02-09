@@ -164,7 +164,7 @@ Same iteration protocol as Second Mind sprints:
 - **Tests:** Playwright test for confirm/edit/remove flows. Playwright test for batch confirm.
 
 ### 1.4 Photo classification and default tags
-- **Status:** `TODO`
+- **Status:** `DONE` — Classification modal appears before processing: My Shelf (owned, my-shelf), Bookstore (to-buy, bookstore), Library (to-borrow, library), Other (no tags). Default tags auto-applied to all identified books. Tags shown as pills on book cards.
 - **What:** When uploading photos, let user classify each photo:
   - "My shelf" → default tags: `owned`, `my-shelf`
   - "Bookstore" → default tags: `to-buy`, `bookstore`

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import BookEditSearch from '../components/BookEditSearch'
+import PhotoClassifier, { getDefaultTags } from '../components/PhotoClassifier'
 
 interface SessionPageProps {
   sessionId: number
@@ -45,6 +46,7 @@ export default function SessionPage({
   const [processing, setProcessing] = useState(false)
   const [processingStatus, setProcessingStatus] = useState('')
   const [editingBookId, setEditingBookId] = useState<number | null>(null)
+  const [pendingFiles, setPendingFiles] = useState<string[] | null>(null)
   const dropRef = useRef<HTMLDivElement>(null)
 
   const loadSession = useCallback(async () => {
@@ -90,7 +92,7 @@ export default function SessionPage({
   // Listen for photos from menu
   useEffect(() => {
     const cleanup = window.electronAPI.onPhotosSelected(async (paths: string[]) => {
-      await processPhotos(paths)
+      setPendingFiles(paths)
     })
     return cleanup
   }, [sessionId])
@@ -103,18 +105,25 @@ export default function SessionPage({
       .map((f) => (f as any).path as string)
       .filter(Boolean)
     if (files.length > 0) {
-      await processPhotos(files)
+      setPendingFiles(files)
     }
   }
 
   const handleFileSelect = async () => {
     const result = await window.electronAPI.showOpenDialog()
     if (!result.canceled && result.filePaths.length > 0) {
-      await processPhotos(result.filePaths)
+      setPendingFiles(result.filePaths)
     }
   }
 
-  const processPhotos = async (filePaths: string[]) => {
+  const handleClassification = async (classification: string) => {
+    if (!pendingFiles) return
+    const files = pendingFiles
+    setPendingFiles(null)
+    await processPhotos(files, classification)
+  }
+
+  const processPhotos = async (filePaths: string[], classification: string = 'other') => {
     setProcessing(true)
     let totalNewBooks = 0
     try {
@@ -155,7 +164,7 @@ export default function SessionPage({
         await window.electronAPI.savePhoto({
           session_id: sessionId,
           file_path: photo.storedPath,
-          classification: 'other',
+          classification,
           hash: photo.hash,
         })
 
@@ -200,6 +209,7 @@ export default function SessionPage({
             // Google Books lookup failed, continue without enrichment
           }
 
+          const defaultTags = getDefaultTags(classification)
           await window.electronAPI.saveBook({
             session_id: sessionId,
             title: enriched?.title || book.title,
@@ -209,7 +219,7 @@ export default function SessionPage({
             year: enriched?.year || null,
             page_count: enriched?.page_count || null,
             description: enriched?.description || null,
-            tags: '[]',
+            tags: JSON.stringify(defaultTags),
             notes: null,
             confidence: book.confidence,
             verified: false,
@@ -538,7 +548,7 @@ export default function SessionPage({
                       {book.author}
                     </p>
 
-                    <div className="flex items-center gap-1.5 mt-2">
+                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                       <span
                         className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${confidenceColor(
                           book.confidence
@@ -551,6 +561,14 @@ export default function SessionPage({
                           confirmed
                         </span>
                       )}
+                      {book.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20 font-medium"
+                        >
+                          {tag}
+                        </span>
+                      ))}
                     </div>
 
                     {/* Actions */}
@@ -595,6 +613,14 @@ export default function SessionPage({
           </>
         )}
       </div>
+
+      {/* Classification modal */}
+      {pendingFiles && (
+        <PhotoClassifier
+          onSelect={handleClassification}
+          onCancel={() => setPendingFiles(null)}
+        />
+      )}
     </div>
   )
 }
