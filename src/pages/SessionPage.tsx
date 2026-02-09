@@ -55,6 +55,7 @@ export default function SessionPage({
   const [notesBookId, setNotesBookId] = useState<number | null>(null)
   const [editingName, setEditingName] = useState(false)
   const [sessionName, setSessionName] = useState('')
+  const [exporting, setExporting] = useState(false)
   const dropRef = useRef<HTMLDivElement>(null)
 
   const loadSession = useCallback(async () => {
@@ -387,6 +388,40 @@ export default function SessionPage({
     })
   }
 
+  const handleExportCSV = async () => {
+    const result = await window.electronAPI.showSaveDialog({
+      defaultPath: `${session?.name || 'books'}.csv`,
+      filters: [{ name: 'CSV', extensions: ['csv'] }],
+    })
+    if (result.canceled || !result.filePath) return
+    setExporting(true)
+    try {
+      const csv = await window.electronAPI.exportSessionCSV(sessionId)
+      await window.electronAPI.writeFile(result.filePath, csv)
+      await window.electronAPI.showNotification('Export Complete', `Saved CSV to ${result.filePath}`)
+    } catch (err: any) {
+      console.error('Export failed:', err)
+    }
+    setExporting(false)
+  }
+
+  const handleExportJSON = async () => {
+    const result = await window.electronAPI.showSaveDialog({
+      defaultPath: `${session?.name || 'books'}.json`,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (result.canceled || !result.filePath) return
+    setExporting(true)
+    try {
+      const json = await window.electronAPI.exportSessionJSON(sessionId)
+      await window.electronAPI.writeFile(result.filePath, json)
+      await window.electronAPI.showNotification('Export Complete', `Saved JSON to ${result.filePath}`)
+    } catch (err: any) {
+      console.error('Export failed:', err)
+    }
+    setExporting(false)
+  }
+
   const confidenceColor = (c: string) => {
     switch (c) {
       case 'high':
@@ -492,6 +527,24 @@ export default function SessionPage({
             >
               Confirm All High ({unverifiedHighCount})
             </button>
+          )}
+          {books.length > 0 && (
+            <>
+              <button
+                onClick={handleExportCSV}
+                disabled={exporting}
+                className="px-3 py-1.5 text-xs font-medium bg-surface-secondary border border-border text-text-primary rounded-lg hover:bg-surface-tertiary disabled:opacity-50 transition-colors"
+              >
+                CSV
+              </button>
+              <button
+                onClick={handleExportJSON}
+                disabled={exporting}
+                className="px-3 py-1.5 text-xs font-medium bg-surface-secondary border border-border text-text-primary rounded-lg hover:bg-surface-tertiary disabled:opacity-50 transition-colors"
+              >
+                JSON
+              </button>
+            </>
           )}
           <button
             onClick={handleFileSelect}

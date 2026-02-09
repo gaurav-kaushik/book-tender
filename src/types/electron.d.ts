@@ -51,6 +51,24 @@ export interface ElectronAPI {
   savePhoto: (photo: any) => Promise<number>
   getPhotos: (sessionId: number) => Promise<any[]>
 
+  writeFile: (filePath: string, content: string) => Promise<boolean>
+
+  findCrossSessionDuplicates: (sessionId: number) => Promise<any[]>
+
+  exportSessionCSV: (sessionId: number) => Promise<string>
+  exportSessionJSON: (sessionId: number) => Promise<string>
+
+  pushToApi: (
+    sessionId: number,
+    url: string,
+    authHeader?: string
+  ) => Promise<{ success: boolean; error?: string; data?: any }>
+
+  setSetting: (key: string, value: string) => Promise<boolean>
+  getSetting: (key: string) => Promise<string | null>
+
+  getAllBooks: () => Promise<any[]>
+
   showNotification: (title: string, body: string) => Promise<boolean>
 
   onNavigate: (callback: (path: string) => void) => () => void

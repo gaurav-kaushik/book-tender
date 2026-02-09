@@ -1,5 +1,126 @@
 import { useState, useEffect } from 'react'
 
+function ExportApiSection() {
+  const [apiUrl, setApiUrl] = useState('')
+  const [authHeader, setAuthHeader] = useState('')
+  const [saved, setSaved] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function load() {
+      const url = await window.electronAPI.getSetting('export_api_url')
+      const auth = await window.electronAPI.getSetting('export_api_auth')
+      if (url) setApiUrl(url)
+      if (auth) setAuthHeader(auth)
+    }
+    load()
+  }, [])
+
+  const handleSave = async () => {
+    await window.electronAPI.setSetting('export_api_url', apiUrl.trim())
+    await window.electronAPI.setSetting('export_api_auth', authHeader.trim())
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleTest = async () => {
+    if (!apiUrl.trim()) return
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const response = await fetch(apiUrl.trim(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authHeader.trim() ? { Authorization: authHeader.trim() } : {}),
+        },
+        body: JSON.stringify({
+          exported_at: new Date().toISOString(),
+          session_name: 'Test Connection',
+          book_count: 1,
+          books: [
+            {
+              title: 'Test Book',
+              author: 'Test Author',
+              isbn: '0000000000000',
+              tags: ['test'],
+            },
+          ],
+        }),
+      })
+      setTestResult(response.ok ? 'Connection successful!' : `Error: HTTP ${response.status}`)
+    } catch (err: any) {
+      setTestResult(`Error: ${err.message}`)
+    }
+    setTesting(false)
+  }
+
+  return (
+    <section className="mb-8">
+      <h2 className="text-lg font-medium text-text-primary mb-4">Export API</h2>
+      <p className="text-sm text-text-secondary mb-4">
+        Configure a webhook to push book data to an external system.
+      </p>
+
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-text-primary mb-1.5">
+            API URL
+          </label>
+          <input
+            type="url"
+            value={apiUrl}
+            onChange={(e) => setApiUrl(e.target.value)}
+            placeholder="https://api.example.com/books"
+            className="w-full px-3 py-2 text-sm bg-surface-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent text-text-primary placeholder-text-tertiary"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-text-primary mb-1.5">
+            Authorization Header{' '}
+            <span className="text-text-tertiary">(optional)</span>
+          </label>
+          <input
+            type="password"
+            value={authHeader}
+            onChange={(e) => setAuthHeader(e.target.value)}
+            placeholder="Bearer your-token-here"
+            className="w-full px-3 py-2 text-sm bg-surface-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent text-text-primary placeholder-text-tertiary"
+          />
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleTest}
+            disabled={!apiUrl.trim() || testing}
+            className="px-4 py-2 text-sm font-medium bg-surface-secondary border border-border rounded-lg hover:bg-surface-tertiary disabled:opacity-50 transition-colors text-text-primary"
+          >
+            {testing ? 'Testing...' : 'Test Connection'}
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors"
+          >
+            Save
+          </button>
+          {testResult && (
+            <span
+              className={`text-sm ${
+                testResult.startsWith('Error') ? 'text-red-500' : 'text-green-500'
+              }`}
+            >
+              {testResult}
+            </span>
+          )}
+          {saved && <span className="text-sm text-green-500">Saved!</span>}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export default function SettingsPage() {
   const [anthropicKey, setAnthropicKey] = useState('')
   const [googleKey, setGoogleKey] = useState('')
@@ -163,6 +284,8 @@ export default function SettingsPage() {
           </div>
         </div>
       </section>
+
+      <ExportApiSection />
 
       <section>
         <h2 className="text-lg font-medium text-text-primary mb-4">About</h2>

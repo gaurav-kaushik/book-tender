@@ -51,6 +51,32 @@ const api = {
   savePhoto: (photo: any) => ipcRenderer.invoke('save-photo', photo),
   getPhotos: (sessionId: number) => ipcRenderer.invoke('get-photos', sessionId),
 
+  // Write file
+  writeFile: (filePath: string, content: string) =>
+    ipcRenderer.invoke('write-file', filePath, content),
+
+  // Dedup
+  findCrossSessionDuplicates: (sessionId: number) =>
+    ipcRenderer.invoke('find-cross-session-duplicates', sessionId),
+
+  // Export
+  exportSessionCSV: (sessionId: number) =>
+    ipcRenderer.invoke('export-session-csv', sessionId),
+  exportSessionJSON: (sessionId: number) =>
+    ipcRenderer.invoke('export-session-json', sessionId),
+
+  // API Push
+  pushToApi: (sessionId: number, url: string, authHeader?: string) =>
+    ipcRenderer.invoke('push-to-api', sessionId, url, authHeader),
+
+  // Settings (non-key)
+  setSetting: (key: string, value: string) =>
+    ipcRenderer.invoke('set-setting', key, value),
+  getSetting: (key: string) => ipcRenderer.invoke('get-setting', key),
+
+  // All books (library view)
+  getAllBooks: () => ipcRenderer.invoke('get-all-books'),
+
   // Notifications
   showNotification: (title: string, body: string) =>
     ipcRenderer.invoke('show-notification', title, body),

@@ -211,7 +211,7 @@ Same iteration protocol as Second Mind sprints:
 ## Sprint 3 -- Dedup & Export
 
 ### 3.1 Deduplication engine
-- **Status:** `TODO`
+- **Status:** `DONE` — Fuzzy matching with Levenshtein distance on normalized title+author (threshold 0.85). Cross-session dedup via IPC. Within-session dedup flags duplicates with notes. Unit tests for normalization, Levenshtein, similarity, and duplicate detection (14 tests).
 - **What:** Before export (and on demand), run dedup:
   - **Within session**: Match on ISBN (exact) or title+author (fuzzy, Levenshtein or similar). Flag matches, let user merge or keep both.
   - **Across sessions**: Check new books against all previous sessions. Show: "You already scanned this in 'Bedroom Shelf' on Jan 15."
@@ -221,7 +221,7 @@ Same iteration protocol as Second Mind sprints:
 - **Tests:** Unit test for fuzzy matching logic. Integration test for cross-session dedup. Playwright test for dedup resolution UI.
 
 ### 3.2 Export: CSV
-- **Status:** `TODO`
+- **Status:** `DONE` — CSV export with proper escaping. Columns: title, author, isbn, cover_url, publication_year, page_count, ownership_status, reading_status, tags, notes, source, date_scanned. Native save dialog. Unit tests for CSV escaping (5 tests).
 - **What:** Export button generates a CSV with columns:
   ```
   title, author, isbn, cover_url, publication_year, page_count, 
@@ -232,7 +232,7 @@ Same iteration protocol as Second Mind sprints:
 - **Tests:** Unit test for CSV generation. Verify column format with sample data.
 
 ### 3.3 Export: JSON
-- **Status:** `TODO`
+- **Status:** `DONE` — JSON export with metadata wrapper (exported_at, session_name, book_count, books array). Properly typed fields. Native save dialog. Unit tests for tag categorization (2 tests).
 - **What:** Export as JSON array. Same fields as CSV but properly typed. Include a metadata wrapper:
   ```json
   {
@@ -246,7 +246,7 @@ Same iteration protocol as Second Mind sprints:
 - **Tests:** Unit test for JSON generation.
 
 ### 3.4 Export: API push (generic webhook)
-- **Status:** `TODO`
+- **Status:** `DONE` — Settings page with Export API section: URL field, auth header field, Test Connection button. Push via main process (POST with JSON format). Error handling for failures. Save/load settings in SQLite.
 - **What:** For users who want to push to an external system (like Second Mind or any API), support a configurable webhook:
   - Settings page: "Export API" section with URL field and optional auth header
   - Sends a POST with the standard JSON format from 3.3

@@ -13,7 +13,7 @@ import path from 'path'
 import { initDatabase, getDatabase } from './services/db'
 import { identifyBooks } from './services/claude'
 import { lookupBook } from './services/books'
-import { readFileSync, copyFileSync, mkdirSync, existsSync } from 'fs'
+import { readFileSync, writeFileSync, copyFileSync, mkdirSync, existsSync } from 'fs'
 import crypto from 'crypto'
 
 const isDev = !app.isPackaged
@@ -512,6 +512,232 @@ function registerIpcHandlers() {
     const ext = path.extname(filePath).toLowerCase().replace('.', '')
     const mimeType = ext === 'jpg' ? 'jpeg' : ext
     return `data:image/${mimeType};base64,${buffer.toString('base64')}`
+  })
+
+  // --- Write file ---
+  ipcMain.handle('write-file', (_event, filePath: string, content: string) => {
+    writeFileSync(filePath, content, 'utf-8')
+    return true
+  })
+
+  // --- Cross-session dedup ---
+  ipcMain.handle('find-cross-session-duplicates', (_event, sessionId: number) => {
+    const { checkDuplicate } = require('./services/dedup') as typeof import('./services/dedup')
+
+    const sessionBooks = db
+      .prepare(
+        `SELECT b.*, s.name as session_name FROM books b
+         JOIN sessions s ON b.session_id = s.id
+         WHERE b.session_id = ?`
+      )
+      .all(sessionId) as any[]
+
+    const otherBooks = db
+      .prepare(
+        `SELECT b.*, s.name as session_name FROM books b
+         JOIN sessions s ON b.session_id = s.id
+         WHERE b.session_id != ?`
+      )
+      .all(sessionId) as any[]
+
+    const duplicates: any[] = []
+    for (const book of sessionBooks) {
+      for (const other of otherBooks) {
+        const result = checkDuplicate(
+          { title: book.title, author: book.author, isbn: book.isbn },
+          { title: other.title, author: other.author, isbn: other.isbn }
+        )
+        if (result) {
+          duplicates.push({
+            book1: {
+              id: book.id,
+              title: book.title,
+              author: book.author,
+              isbn: book.isbn,
+              session_name: book.session_name,
+            },
+            book2: {
+              id: other.id,
+              title: other.title,
+              author: other.author,
+              isbn: other.isbn,
+              session_name: other.session_name,
+            },
+            matchType: result.matchType,
+            similarity: result.similarity,
+          })
+        }
+      }
+    }
+
+    return duplicates
+  })
+
+  // --- Export ---
+  ipcMain.handle('export-session-csv', async (_event, sessionId: number) => {
+    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId) as any
+    const books = db.prepare('SELECT * FROM books WHERE session_id = ?').all(sessionId) as any[]
+
+    const OWNERSHIP_TAGS = ['owned', 'to-buy', 'to-borrow', 'lent', 'gave-away', 'lost']
+    const READING_TAGS = ['unread', 'reading', 'read', 'abandoned', 're-reading']
+    const SOURCE_TAGS = ['my-shelf', 'bookstore', 'library', 'recommendation', 'online']
+
+    const headers = [
+      'title', 'author', 'isbn', 'cover_url', 'publication_year', 'page_count',
+      'ownership_status', 'reading_status', 'tags', 'notes', 'source', 'date_scanned'
+    ]
+
+    const escapeCSV = (val: string | null | undefined) => {
+      if (val === null || val === undefined) return ''
+      const str = String(val)
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`
+      }
+      return str
+    }
+
+    const rows = books.map((book) => {
+      const tags: string[] = typeof book.tags === 'string' ? JSON.parse(book.tags) : book.tags || []
+      const ownership = tags.find((t: string) => OWNERSHIP_TAGS.includes(t)) || ''
+      const reading = tags.find((t: string) => READING_TAGS.includes(t)) || ''
+      const source = tags.find((t: string) => SOURCE_TAGS.includes(t)) || ''
+      const otherTags = tags.filter(
+        (t: string) => !OWNERSHIP_TAGS.includes(t) && !READING_TAGS.includes(t) && !SOURCE_TAGS.includes(t)
+      )
+
+      return [
+        escapeCSV(book.title),
+        escapeCSV(book.author),
+        escapeCSV(book.isbn),
+        escapeCSV(book.cover_url),
+        escapeCSV(book.year?.toString()),
+        escapeCSV(book.page_count?.toString()),
+        escapeCSV(ownership),
+        escapeCSV(reading),
+        escapeCSV(otherTags.join(', ')),
+        escapeCSV(book.notes),
+        escapeCSV(source),
+        escapeCSV(session?.created_at),
+      ].join(',')
+    })
+
+    return [headers.join(','), ...rows].join('\n')
+  })
+
+  ipcMain.handle('export-session-json', async (_event, sessionId: number) => {
+    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId) as any
+    const books = db.prepare('SELECT * FROM books WHERE session_id = ?').all(sessionId) as any[]
+
+    const OWNERSHIP_TAGS = ['owned', 'to-buy', 'to-borrow', 'lent', 'gave-away', 'lost']
+    const READING_TAGS = ['unread', 'reading', 'read', 'abandoned', 're-reading']
+
+    const exportData = {
+      exported_at: new Date().toISOString(),
+      session_name: session?.name || 'Unknown',
+      book_count: books.length,
+      books: books.map((book) => {
+        const tags: string[] = typeof book.tags === 'string' ? JSON.parse(book.tags) : book.tags || []
+        return {
+          title: book.title,
+          author: book.author,
+          isbn: book.isbn,
+          cover_url: book.cover_url,
+          publication_year: book.year,
+          page_count: book.page_count,
+          description: book.description,
+          ownership_status: tags.find((t: string) => OWNERSHIP_TAGS.includes(t)) || null,
+          reading_status: tags.find((t: string) => READING_TAGS.includes(t)) || null,
+          tags: tags.filter((t: string) => !OWNERSHIP_TAGS.includes(t) && !READING_TAGS.includes(t)),
+          notes: book.notes,
+          confidence: book.confidence,
+          verified: !!book.verified,
+        }
+      }),
+    }
+
+    return JSON.stringify(exportData, null, 2)
+  })
+
+  // --- API Push ---
+  ipcMain.handle('push-to-api', async (_event, sessionId: number, url: string, authHeader?: string) => {
+    const jsonStr = await new Promise<string>((resolve) => {
+      // Generate the same JSON as export
+      const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId) as any
+      const books = db.prepare('SELECT * FROM books WHERE session_id = ?').all(sessionId) as any[]
+
+      const OWNERSHIP_TAGS = ['owned', 'to-buy', 'to-borrow', 'lent', 'gave-away', 'lost']
+      const READING_TAGS = ['unread', 'reading', 'read', 'abandoned', 're-reading']
+
+      const exportData = {
+        exported_at: new Date().toISOString(),
+        session_name: session?.name || 'Unknown',
+        book_count: books.length,
+        books: books.map((book) => {
+          const tags: string[] = typeof book.tags === 'string' ? JSON.parse(book.tags) : book.tags || []
+          return {
+            title: book.title,
+            author: book.author,
+            isbn: book.isbn,
+            cover_url: book.cover_url,
+            publication_year: book.year,
+            page_count: book.page_count,
+            description: book.description,
+            ownership_status: tags.find((t: string) => OWNERSHIP_TAGS.includes(t)) || null,
+            reading_status: tags.find((t: string) => READING_TAGS.includes(t)) || null,
+            tags: tags.filter((t: string) => !OWNERSHIP_TAGS.includes(t) && !READING_TAGS.includes(t)),
+            notes: book.notes,
+            confidence: book.confidence,
+            verified: !!book.verified,
+          }
+        }),
+      }
+
+      resolve(JSON.stringify(exportData))
+    })
+
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (authHeader) {
+        headers['Authorization'] = authHeader
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: jsonStr,
+      })
+
+      if (!response.ok) {
+        return { success: false, error: `HTTP ${response.status}: ${response.statusText}` }
+      }
+
+      const responseData = await response.json().catch(() => null)
+      return { success: true, data: responseData }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // --- Settings (non-API-key) ---
+  ipcMain.handle('set-setting', (_event, key: string, value: string) => {
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value)
+    return true
+  })
+
+  ipcMain.handle('get-setting', (_event, key: string) => {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined
+    return row?.value || null
+  })
+
+  // --- All books (for Library view) ---
+  ipcMain.handle('get-all-books', () => {
+    return db
+      .prepare(
+        `SELECT b.*, s.name as session_name FROM books b
+         JOIN sessions s ON b.session_id = s.id
+         ORDER BY b.id DESC`
+      )
+      .all()
   })
 
   // Helper to get decrypted API key
