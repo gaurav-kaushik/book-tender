@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import BookEditSearch from '../components/BookEditSearch'
 import PhotoClassifier, { getDefaultTags } from '../components/PhotoClassifier'
+import TagPicker, { getTagColor } from '../components/TagPicker'
 
 interface SessionPageProps {
   sessionId: number
@@ -47,6 +48,9 @@ export default function SessionPage({
   const [processingStatus, setProcessingStatus] = useState('')
   const [editingBookId, setEditingBookId] = useState<number | null>(null)
   const [pendingFiles, setPendingFiles] = useState<string[] | null>(null)
+  const [taggingBookId, setTaggingBookId] = useState<number | null>(null)
+  const [selectedForBulk, setSelectedForBulk] = useState<Set<number>>(new Set())
+  const [showBulkTagPicker, setShowBulkTagPicker] = useState(false)
   const dropRef = useRef<HTMLDivElement>(null)
 
   const loadSession = useCallback(async () => {
@@ -324,6 +328,41 @@ export default function SessionPage({
     setEditingBookId(null)
   }
 
+  const handleSaveTags = async (bookId: number, tags: string[]) => {
+    await window.electronAPI.updateBook(bookId, { tags: JSON.stringify(tags) })
+    setBooks((prev) =>
+      prev.map((b) => (b.id === bookId ? { ...b, tags } : b))
+    )
+    setTaggingBookId(null)
+  }
+
+  const handleBulkTag = async (tags: string[]) => {
+    for (const bookId of selectedForBulk) {
+      await window.electronAPI.updateBook(bookId, {
+        tags: JSON.stringify(tags),
+      })
+    }
+    setBooks((prev) =>
+      prev.map((b) =>
+        selectedForBulk.has(b.id!) ? { ...b, tags } : b
+      )
+    )
+    setSelectedForBulk(new Set())
+    setShowBulkTagPicker(false)
+  }
+
+  const toggleBulkSelect = (bookId: number) => {
+    setSelectedForBulk((prev) => {
+      const next = new Set(prev)
+      if (next.has(bookId)) {
+        next.delete(bookId)
+      } else {
+        next.add(bookId)
+      }
+      return next
+    })
+  }
+
   const confidenceColor = (c: string) => {
     switch (c) {
       case 'high':
@@ -369,6 +408,25 @@ export default function SessionPage({
           </p>
         </div>
         <div className="flex gap-2">
+          {selectedForBulk.size > 0 && (
+            <>
+              <span className="text-xs text-text-secondary self-center">
+                {selectedForBulk.size} selected
+              </span>
+              <button
+                onClick={() => setShowBulkTagPicker(true)}
+                className="px-3 py-1.5 text-xs font-medium bg-accent/10 text-accent border border-accent/20 rounded-lg hover:bg-accent/20 transition-colors"
+              >
+                Tag Selected
+              </button>
+              <button
+                onClick={() => setSelectedForBulk(new Set())}
+                className="px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary transition-colors"
+              >
+                Clear
+              </button>
+            </>
+          )}
           {unverifiedHighCount > 0 && (
             <button
               onClick={handleConfirmAllHigh}
@@ -521,6 +579,23 @@ export default function SessionPage({
                     {index + 1}
                   </div>
 
+                  {/* Bulk select checkbox */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      book.id && toggleBulkSelect(book.id)
+                    }}
+                    className={`absolute top-2 right-2 z-10 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                      selectedForBulk.has(book.id!)
+                        ? 'bg-accent border-accent text-white'
+                        : 'bg-black/30 border-white/60 hover:border-white'
+                    }`}
+                  >
+                    {selectedForBulk.has(book.id!) && (
+                      <span className="text-[10px] font-bold">✓</span>
+                    )}
+                  </button>
+
                   {/* Cover */}
                   <div className="aspect-[2/3] bg-surface-tertiary rounded-t-xl overflow-hidden flex items-center justify-center">
                     {book.cover_url ? (
@@ -564,11 +639,18 @@ export default function SessionPage({
                       {book.tags.map((tag) => (
                         <span
                           key={tag}
-                          className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20 font-medium"
+                          className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${getTagColor(tag)}`}
                         >
                           {tag}
                         </span>
                       ))}
+                      <button
+                        onClick={() => book.id && setTaggingBookId(book.id)}
+                        className="text-[10px] px-1.5 py-0.5 rounded-full border border-dashed border-text-tertiary text-text-tertiary hover:border-accent hover:text-accent transition-colors"
+                        title="Edit tags"
+                      >
+                        +
+                      </button>
                     </div>
 
                     {/* Actions */}
@@ -619,6 +701,26 @@ export default function SessionPage({
         <PhotoClassifier
           onSelect={handleClassification}
           onCancel={() => setPendingFiles(null)}
+        />
+      )}
+
+      {/* Individual tag picker */}
+      {taggingBookId && (
+        <TagPicker
+          currentTags={
+            books.find((b) => b.id === taggingBookId)?.tags || []
+          }
+          onSave={(tags) => handleSaveTags(taggingBookId, tags)}
+          onClose={() => setTaggingBookId(null)}
+        />
+      )}
+
+      {/* Bulk tag picker */}
+      {showBulkTagPicker && (
+        <TagPicker
+          currentTags={[]}
+          onSave={handleBulkTag}
+          onClose={() => setShowBulkTagPicker(false)}
         />
       )}
     </div>

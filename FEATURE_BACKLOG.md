@@ -179,7 +179,7 @@ Same iteration protocol as Second Mind sprints:
 ## Sprint 2 -- Tagging & Session Management
 
 ### 2.1 Tag system UI
-- **Status:** `TODO`
+- **Status:** `DONE` — Tag picker with four categories: Ownership (pick one), Reading Status (pick one), Intent (multi), Source (pick one). Color-coded by category. Custom tag input. Bulk tag: select multiple books via checkboxes, apply tags to all at once. Tags shown as colored pills on cards with + button to add.
 - **What:** Each book card in the grid has a tag area. Show current tags as pills/chips. Click to edit: shows tag picker with categories (ownership, reading status, intent, source, custom). Multi-select within each category (except ownership and reading status, which are pick-one). Custom tag input: type a new tag name, press enter to create. Tags are color-coded by category. Bulk tag: select multiple books, apply tags to all at once.
 - **Acceptance:** Tag a book as `owned`, `read`, `favorite`, `sci-fi`. All four tags show as colored pills. Bulk-tag 5 books as `tbr`. Tags apply correctly.
 - **Tests:** Playwright test for individual tagging, custom tag creation, and bulk tagging.
