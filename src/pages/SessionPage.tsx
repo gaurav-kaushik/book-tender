@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import BookEditSearch from '../components/BookEditSearch'
 
 interface SessionPageProps {
   sessionId: number
@@ -43,6 +44,7 @@ export default function SessionPage({
   const [isDragging, setIsDragging] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [processingStatus, setProcessingStatus] = useState('')
+  const [editingBookId, setEditingBookId] = useState<number | null>(null)
   const dropRef = useRef<HTMLDivElement>(null)
 
   const loadSession = useCallback(async () => {
@@ -272,6 +274,46 @@ export default function SessionPage({
     )
   }
 
+  const handleEditBook = async (
+    bookId: number,
+    result: {
+      title: string
+      author: string
+      isbn: string | null
+      cover_url: string | null
+      year: number | null
+      page_count: number | null
+      description: string | null
+    }
+  ) => {
+    await window.electronAPI.updateBook(bookId, {
+      title: result.title,
+      author: result.author,
+      isbn: result.isbn,
+      cover_url: result.cover_url,
+      year: result.year,
+      page_count: result.page_count,
+      description: result.description,
+    })
+    setBooks((prev) =>
+      prev.map((b) =>
+        b.id === bookId
+          ? {
+              ...b,
+              title: result.title,
+              author: result.author,
+              isbn: result.isbn || undefined,
+              cover_url: result.cover_url || undefined,
+              year: result.year || undefined,
+              page_count: result.page_count || undefined,
+              description: result.description || undefined,
+            }
+          : b
+      )
+    )
+    setEditingBookId(null)
+  }
+
   const confidenceColor = (c: string) => {
     switch (c) {
       case 'high':
@@ -455,15 +497,20 @@ export default function SessionPage({
 
             {/* Book grid */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {books.map((book) => (
+              {books.map((book, index) => (
                 <div
                   key={book.id}
-                  className={`bg-surface-secondary rounded-xl border transition-all ${
+                  className={`relative bg-surface-secondary rounded-xl border transition-all ${
                     book.verified
                       ? 'border-green-500/30'
                       : 'border-border hover:border-text-tertiary'
                   }`}
                 >
+                  {/* Position badge */}
+                  <div className="absolute top-2 left-2 z-10 w-5 h-5 bg-black/60 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {index + 1}
+                  </div>
+
                   {/* Cover */}
                   <div className="aspect-[2/3] bg-surface-tertiary rounded-t-xl overflow-hidden flex items-center justify-center">
                     {book.cover_url ? (
@@ -507,22 +554,40 @@ export default function SessionPage({
                     </div>
 
                     {/* Actions */}
-                    {!book.verified && (
+                    {editingBookId === book.id ? (
+                      <BookEditSearch
+                        initialTitle={book.title}
+                        initialAuthor={book.author}
+                        onSelect={(result) =>
+                          book.id && handleEditBook(book.id, result)
+                        }
+                        onCancel={() => setEditingBookId(null)}
+                      />
+                    ) : !book.verified ? (
                       <div className="flex gap-1.5 mt-3">
                         <button
                           onClick={() => book.id && handleConfirmBook(book.id)}
                           className="flex-1 px-2 py-1 text-xs font-medium bg-green-500/10 text-green-600 dark:text-green-400 rounded-md hover:bg-green-500/20 transition-colors"
+                          title="Confirm"
                         >
-                          Confirm
+                          ✓
+                        </button>
+                        <button
+                          onClick={() => book.id && setEditingBookId(book.id)}
+                          className="flex-1 px-2 py-1 text-xs font-medium bg-accent/10 text-accent rounded-md hover:bg-accent/20 transition-colors"
+                          title="Edit"
+                        >
+                          ✎
                         </button>
                         <button
                           onClick={() => book.id && handleRemoveBook(book.id)}
                           className="flex-1 px-2 py-1 text-xs font-medium bg-red-500/10 text-red-600 dark:text-red-400 rounded-md hover:bg-red-500/20 transition-colors"
+                          title="Remove"
                         >
-                          Remove
+                          ✗
                         </button>
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               ))}

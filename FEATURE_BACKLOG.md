@@ -151,7 +151,7 @@ Same iteration protocol as Second Mind sprints:
 - **Tests:** Unit test for Claude response parsing. Unit test for Google Books API response parsing. Integration test for the full pipeline with a sample image.
 
 ### 1.3 Verification grid
-- **Status:** `TODO`
+- **Status:** `DONE` — Grid shows cover, title, author, confidence badges (green/yellow/red), numbered position badges. Action buttons: Confirm (✓), Edit (✎ with Google Books search), Remove (✗). Batch "Confirm All High" button. Edit mode opens inline search with Google Books results.
 - **What:** After identification, show a grid of book cards. Each card shows:
   - Cover thumbnail (from Google Books, or placeholder if not found)
   - Title and author
