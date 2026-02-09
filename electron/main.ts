@@ -9,6 +9,7 @@ import {
   shell,
   Notification,
   clipboard,
+  session,
 } from 'electron'
 import path from 'path'
 import { initDatabase, getDatabase } from './services/db'
@@ -22,6 +23,10 @@ const isDev = !app.isPackaged
 let mainWindow: BrowserWindow | null = null
 
 function createWindow() {
+  const preloadPath = path.join(__dirname, 'preload.js')
+  console.log('[main] __dirname:', __dirname)
+  console.log('[main] preload path:', preloadPath)
+  console.log('[main] preload exists:', existsSync(preloadPath))
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -32,7 +37,7 @@ function createWindow() {
     vibrancy: 'sidebar',
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#1e1e1e' : '#ffffff',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: preloadPath,
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false,
@@ -40,7 +45,8 @@ function createWindow() {
   })
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173')
+    mainWindow.loadURL('http://localhost:5199')
+    mainWindow.webContents.openDevTools()
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
   }
@@ -774,6 +780,20 @@ function registerIpcHandlers() {
 }
 
 app.whenReady().then(() => {
+  // Set CSP headers in production only — dev mode needs no restrictions for Vite HMR
+  if (!isDev) {
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://books.google.com https://*.googleusercontent.com; connect-src 'self';"
+          ],
+        },
+      })
+    })
+  }
+
   initDatabase()
   buildMenu()
   createWindow()

@@ -2,7 +2,6 @@
   "name": "book-tender",
   "version": "0.1.0",
   "description": "Catalog your physical books by taking photos of your shelves",
-  "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
