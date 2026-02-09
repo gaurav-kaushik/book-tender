@@ -5,8 +5,9 @@ import OnboardingModal from './components/OnboardingModal'
 import SettingsPage from './components/SettingsPage'
 import HomePage from './pages/HomePage'
 import SessionPage from './pages/SessionPage'
+import LibraryPage from './pages/LibraryPage'
 
-type Page = 'home' | 'settings' | 'session'
+type Page = 'home' | 'settings' | 'session' | 'library'
 
 export default function App() {
   useDarkMode()
@@ -104,6 +105,7 @@ export default function App() {
           {currentPage === 'home' && (
             <HomePage onNewSession={handleNewSession} />
           )}
+          {currentPage === 'library' && <LibraryPage />}
           {currentPage === 'session' && activeSessionId && (
             <SessionPage
               sessionId={activeSessionId}

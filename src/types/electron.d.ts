@@ -51,6 +51,11 @@ export interface ElectronAPI {
   savePhoto: (photo: any) => Promise<number>
   getPhotos: (sessionId: number) => Promise<any[]>
 
+  pasteImageFromClipboard: () => Promise<{
+    storedPath: string
+    hash: string
+  } | null>
+
   writeFile: (filePath: string, content: string) => Promise<boolean>
 
   findCrossSessionDuplicates: (sessionId: number) => Promise<any[]>

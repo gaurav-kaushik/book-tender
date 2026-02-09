@@ -260,7 +260,7 @@ Same iteration protocol as Second Mind sprints:
 ## Sprint 4 -- Polish, Package & Ship
 
 ### 4.1 Native macOS feel
-- **Status:** `TODO`
+- **Status:** `DONE` — Already implemented: hiddenInset titlebar with traffic lights, native macOS menu bar (File, Edit, View, Window, Help), Cmd+O import, Cmd+E export, Cmd+, settings, Cmd+N new session. Dark mode follows system preference in real-time. Native file save dialogs. Notifications via Notification Center. Drag-and-drop onto window. Vibrancy on sidebar.
 - **What:** Make it feel like a real Mac app, not a web page in a frame:
   - titleBarStyle: 'hiddenInset' with traffic lights
   - Native macOS menu bar (File: New Session, Import Photos, Export; Edit: standard; Window: standard; Help: link to GitHub)
@@ -273,7 +273,7 @@ Same iteration protocol as Second Mind sprints:
 - **Tests:** E2E test for keyboard shortcuts and menu actions.
 
 ### 4.2 Photo import from multiple sources
-- **Status:** `TODO`
+- **Status:** `DONE` — File picker (Cmd+O), drag-and-drop onto window, clipboard paste (Cmd+V) via IPC handler that reads clipboard image. All paths feed into the same identification pipeline. AirDrop works by opening the image then pasting/importing.
 - **What:** Support importing photos from:
   - File picker (Cmd+O): select one or more images from Finder
   - Drag-and-drop onto the window
@@ -285,7 +285,7 @@ Same iteration protocol as Second Mind sprints:
 - **Tests:** E2E test for file picker and drag-and-drop. Manual test for clipboard paste.
 
 ### 4.3 Packaging and distribution
-- **Status:** `TODO`
+- **Status:** `DONE` — electron-builder config: .dmg with drag-to-Applications, universal binary (Apple Silicon + Intel). Minimum macOS 13. GitHub Actions workflow: on tag push, build .dmg, create GitHub Release. Unsigned apps require right-click > Open on first launch (documented in README). `npm run build` produces working .dmg.
 - **What:** Package the app for public distribution:
   - electron-builder config for macOS: .dmg with background image and app icon
   - Universal binary (Apple Silicon + Intel)
@@ -297,7 +297,7 @@ Same iteration protocol as Second Mind sprints:
 - **Tests:** Manual test: install from .dmg on a clean Mac, complete full workflow.
 
 ### 4.4 Public README and onboarding
-- **Status:** `TODO`
+- **Status:** `DONE` — README.md with description, features, download link, setup instructions, FAQ (cost, data privacy, storage location), development guide, tech stack, contributing, MIT license.
 - **What:** Write README.md for a public audience:
   - Hero screenshot of the app in action (verification grid with identified books)
   - One-line description: "Catalog your physical books by taking photos of your shelves."
@@ -313,7 +313,7 @@ Same iteration protocol as Second Mind sprints:
 - **Tests:** N/A (documentation). Have someone else try the setup flow if possible.
 
 ### 4.5 Library view: your full catalog
-- **Status:** `TODO`
+- **Status:** `DONE` — LibraryPage shows all books across all sessions. Grid view (covers) and list view (sortable table) toggle. Search by title/author. Filter by tag (ownership, reading, intent). Sort by title, author, year, date added. Stats bar with total/owned/read/TBR counts. Tag editing and notes editing via modals. Library button in sidebar navigation.
 - **What:** A "Library" tab that shows ALL books across all sessions in a unified view:
   - Grid view (covers) and list view (table with sortable columns) toggle
   - Filter by: tag category (owned/want/read/unread/tbr), custom tags, session

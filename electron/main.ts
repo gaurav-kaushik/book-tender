@@ -8,6 +8,7 @@ import {
   safeStorage,
   shell,
   Notification,
+  clipboard,
 } from 'electron'
 import path from 'path'
 import { initDatabase, getDatabase } from './services/db'
@@ -512,6 +513,27 @@ function registerIpcHandlers() {
     const ext = path.extname(filePath).toLowerCase().replace('.', '')
     const mimeType = ext === 'jpg' ? 'jpeg' : ext
     return `data:image/${mimeType};base64,${buffer.toString('base64')}`
+  })
+
+  // --- Clipboard paste ---
+  ipcMain.handle('paste-image-from-clipboard', async () => {
+    const image = clipboard.readImage()
+    if (image.isEmpty()) return null
+
+    const photosDir = path.join(app.getPath('userData'), 'photos')
+    if (!existsSync(photosDir)) {
+      mkdirSync(photosDir, { recursive: true })
+    }
+
+    const pngBuffer = image.toPNG()
+    const hash = crypto.createHash('sha256').update(pngBuffer).digest('hex')
+    const storedPath = path.join(photosDir, `${hash}.png`)
+
+    if (!existsSync(storedPath)) {
+      writeFileSync(storedPath, pngBuffer)
+    }
+
+    return { storedPath, hash }
   })
 
   // --- Write file ---

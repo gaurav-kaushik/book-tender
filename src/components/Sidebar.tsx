@@ -50,6 +50,27 @@ export default function Sidebar({
           </button>
         </div>
 
+        <div className="px-3 pb-2">
+          <button
+            onClick={() => onNavigate('library')}
+            className={`titlebar-no-drag w-full px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${
+              currentPage === 'library'
+                ? 'bg-surface-tertiary text-text-primary'
+                : 'text-text-secondary hover:bg-surface-tertiary'
+            }`}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M2 3h3v10H2V3zM6.5 3h3v10h-3V3zM11 3l3 1v9l-3-1V3z"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinejoin="round"
+              />
+            </svg>
+            Library
+          </button>
+        </div>
+
         <nav className="flex-1 overflow-y-auto px-2">
           <div className="px-2 py-1.5 text-xs font-medium text-text-tertiary uppercase tracking-wider">
             Sessions

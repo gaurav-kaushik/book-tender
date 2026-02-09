@@ -51,6 +51,9 @@ const api = {
   savePhoto: (photo: any) => ipcRenderer.invoke('save-photo', photo),
   getPhotos: (sessionId: number) => ipcRenderer.invoke('get-photos', sessionId),
 
+  // Clipboard
+  pasteImageFromClipboard: () => ipcRenderer.invoke('paste-image-from-clipboard'),
+
   // Write file
   writeFile: (filePath: string, content: string) =>
     ipcRenderer.invoke('write-file', filePath, content),
